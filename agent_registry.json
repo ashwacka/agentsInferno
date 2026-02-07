@@ -1,0 +1,107 @@
+{
+  "description": "Simulated repository of new AI agents (file-search / RAG / orchestration) for demo. Search and simulate run from metrics.",
+  "agents": [
+    {
+      "id": "docrag-pro",
+      "name": "DocRAG Pro",
+      "vendor": "DocRAG Inc",
+      "released": "2025-01",
+      "category": "file-search",
+      "description": "RAG-optimized for document search, citation, and compliance-style retrieval.",
+      "features": ["semantic search", "chunking", "citation", "multi-format", "audit trail"],
+      "metrics": {
+        "latency_p95_ms": 380,
+        "accuracy_retrieval": 0.94,
+        "cost_per_1k_queries_usd": 2.2,
+        "max_context_tokens": 128000,
+        "file_formats": ["pdf", "docx", "csv", "html", "md"]
+      },
+      "best_for": ["compliance docs", "policy search", "audit trails", "ESG reporting", "gap analysis"]
+    },
+    {
+      "id": "filehound",
+      "name": "FileHound",
+      "vendor": "SearchLabs",
+      "released": "2024-11",
+      "category": "file-search",
+      "description": "Fast file and folder indexing with semantic and keyword hybrid search.",
+      "features": ["hybrid search", "incremental index", "filters", "batch ingest"],
+      "metrics": {
+        "latency_p95_ms": 220,
+        "accuracy_retrieval": 0.88,
+        "cost_per_1k_queries_usd": 1.1,
+        "max_context_tokens": 64000,
+        "file_formats": ["pdf", "docx", "xlsx", "txt", "csv"]
+      },
+      "best_for": ["document triage", "enterprise search", "knowledge base", "file-heavy workflows"]
+    },
+    {
+      "id": "comply-scan",
+      "name": "ComplyScan",
+      "vendor": "RegTech AI",
+      "released": "2025-02",
+      "category": "file-search",
+      "description": "Built for compliance and ESG: gap detection, control mapping, evidence retrieval.",
+      "features": ["gap analysis", "control mapping", "evidence links", "versioning", "export"],
+      "metrics": {
+        "latency_p95_ms": 520,
+        "accuracy_retrieval": 0.96,
+        "cost_per_1k_queries_usd": 4.0,
+        "max_context_tokens": 200000,
+        "file_formats": ["pdf", "docx", "xlsx", "csv", "html"]
+      },
+      "best_for": ["ESG reporting", "compliance gap analysis", "audit evidence", "policy alignment"]
+    },
+    {
+      "id": "orchestrator-x",
+      "name": "Orchestrator X",
+      "vendor": "AgentStack",
+      "released": "2024-12",
+      "category": "orchestration",
+      "description": "Multi-step workflows, tool calling, and RAG in one pipeline.",
+      "features": ["workflow DAG", "tool use", "RAG step", "streaming"],
+      "metrics": {
+        "latency_p95_ms": 1200,
+        "accuracy_retrieval": 0.85,
+        "cost_per_1k_queries_usd": 3.5,
+        "max_context_tokens": 128000,
+        "file_formats": ["pdf", "txt", "json"]
+      },
+      "best_for": ["task automation", "support triage", "research pipelines", "multi-step reasoning"]
+    },
+    {
+      "id": "semantic-lens",
+      "name": "Semantic Lens",
+      "vendor": "NLP Labs",
+      "released": "2025-01",
+      "category": "file-search",
+      "description": "Deep semantic search over long documents with summarization.",
+      "features": ["long-doc", "summarization", "question-answering", "multi-lingual"],
+      "metrics": {
+        "latency_p95_ms": 650,
+        "accuracy_retrieval": 0.91,
+        "cost_per_1k_queries_usd": 2.8,
+        "max_context_tokens": 256000,
+        "file_formats": ["pdf", "docx", "md", "txt"]
+      },
+      "best_for": ["research", "due diligence", "policy review", "ESG disclosure analysis"]
+    },
+    {
+      "id": "quick-index",
+      "name": "QuickIndex",
+      "vendor": "DataFlow",
+      "released": "2024-10",
+      "category": "file-search",
+      "description": "Lightweight embedding index for fast retrieval; fewer features, lower cost.",
+      "features": ["embedding index", "similarity search", "metadata filter"],
+      "metrics": {
+        "latency_p95_ms": 95,
+        "accuracy_retrieval": 0.82,
+        "cost_per_1k_queries_usd": 0.4,
+        "max_context_tokens": 32000,
+        "file_formats": ["txt", "md", "csv"]
+      },
+      "best_for": ["prototypes", "internal docs", "low-latency search", "cost-sensitive use"]
+    }
+  ]
+}

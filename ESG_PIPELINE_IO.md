@@ -1,5 +1,7 @@
 # ESG product: input, outputs at each step, and summary
 
+**Demo strategy:** The system uses a **simulated agent registry** (`agent_registry.json`) instead of real agent APIs. The **search** step queries this document; **simulated run** derives performance from each agent’s metrics; the **AI verdict** (adopt or not) is from the LLM.
+
 ## Your product (input)
 
 ```json

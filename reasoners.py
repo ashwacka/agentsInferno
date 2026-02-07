@@ -1,5 +1,6 @@
 """AI reasoners: analyse product, search agents, test with mock data, build notification report. All use temperature=0 + schema."""
 
+import registry
 from schemas import (
     AgentTestResult,
     AgenticOpportunitiesOut,
@@ -47,16 +48,40 @@ def register(app):
             schema=AgenticOpportunitiesOut,
         )
 
-    # --- Step 3: Model searches for best or new AI agents released ---
+    # --- Step 3a: Search simulated registry (document of new agents) — demo path ---
+    @app.reasoner
+    async def search_agents_from_registry(
+        product: ProductDescription,
+        opportunities: AgenticOpportunitiesOut | None = None,
+    ) -> AgentsFoundOut:
+        """Search the agent registry (agent_registry.json) for agents matching the product and opportunities."""
+        if isinstance(product, dict):
+            product = ProductDescription(**product)
+        opp_list = (opportunities.get("opportunities") if isinstance(opportunities, dict) else getattr(opportunities, "opportunities", None)) or []
+        registry_agents = registry.search_registry(
+            product_name=product.name,
+            product_domain=product.domain,
+            one_liner=product.one_liner,
+            opportunities=opp_list,
+            max_agents=4,
+        )
+        if not registry_agents:
+            registry_agents = registry.load_registry()[:3]
+        agents = [
+            {"name": a.get("name", "Unknown"), "reason_relevant": (a.get("description", "") or "From registry.")[:120], "category": a.get("category", "file-search")}
+            for a in registry_agents
+        ]
+        return AgentsFoundOut(agents=agents, search_context="Searched agent_registry.json (simulated repository of new agents).")
+
+    # --- Step 3b: Legacy LLM search ---
     @app.reasoner
     async def search_agents_for_product(
         product: ProductDescription,
         opportunities: AgenticOpportunitiesOut | None = None,
     ) -> AgentsFoundOut:
-        """Search for best or new AI agent frameworks relevant to the product's use cases."""
+        """Legacy: LLM suggests agents. Pipeline uses registry search for demo."""
         if isinstance(product, dict):
             product = ProductDescription(**product)
-        # opportunities can be dict (from app.call) or AgenticOpportunitiesOut; we only use it for context
         context = f"Product: {product.name} ({product.domain}). {product.one_liner}"
         opp_list = (opportunities.get("opportunities") if isinstance(opportunities, dict) else getattr(opportunities, "opportunities", None)) or []
         if opp_list:
@@ -148,6 +173,52 @@ def register(app):
             schema=ReportInsights,
         )
 
+    # --- Hackathon demo: same flow but skip LLM analyse (use fixed opportunities). Fast, works without API key. ---
+    @app.reasoner
+    async def evaluate_pipeline_demo(product: ProductDescription) -> NotificationReport:
+        """Demo pipeline: fixed opportunities → search registry → simulate → rule-based verdict. No LLM required."""
+        if isinstance(product, dict):
+            product = ProductDescription(**product)
+        opps = {
+            "opportunities": [
+                {"id": "o1", "title": "Document gap analysis", "description": "Identify gaps in compliance and ESG docs.", "suggested_agent_type": "file-search"},
+                {"id": "o2", "title": "File search for policy & evidence", "description": "Search across policies and evidence for reporting.", "suggested_agent_type": "file-search"},
+            ],
+            "summary": "Agentic AI fits document search, gap analysis, and compliance evidence retrieval.",
+        }
+        opportunities_summary = opps["summary"]
+        registry_agents = registry.search_registry(
+            product_name=product.name,
+            product_domain=product.domain,
+            one_liner=product.one_liner,
+            opportunities=opps["opportunities"],
+            max_agents=4,
+        )
+        if not registry_agents:
+            registry_agents = registry.load_registry()[:3]
+        use_case_name = opps["opportunities"][0]["title"]
+        agents_tested = []
+        for agent in registry_agents:
+            agent_name = agent.get("name", "Unknown")
+            eval_result = registry.simulate_run(agent, use_case_name)
+            eval_result_dict = eval_result.model_dump()
+            adopt = eval_result.overall_score >= 0.75
+            agents_tested.append({
+                "agent_name": agent_name,
+                "eval_result": eval_result_dict,
+                "adopt_recommended": adopt,
+                "reasoning": f"Simulated overall score {eval_result.overall_score:.2f}; recommend adopt for score ≥ 0.75.",
+            })
+        overall_insights = f"From registry: {', '.join(a['name'] for a in registry_agents)}. Best fit for '{use_case_name}' based on simulated completeness, determinism, and fit."
+        notification_message = f"Demo report for {product.name}: {sum(1 for a in agents_tested if a['adopt_recommended'])} of {len(agents_tested)} agents recommended for adoption (score ≥ 0.75)."
+        return NotificationReport(
+            product_name=product.name,
+            opportunities_summary=opportunities_summary,
+            agents_tested=[AgentTestResult(**a) for a in agents_tested],
+            overall_insights=overall_insights,
+            notification_message=notification_message,
+        )
+
     # --- Full pipeline: 1) product → 2) analyse → 3) search agents → 4) test each with mock data → 5) notification report ---
     @app.reasoner
     async def evaluate_pipeline(product: ProductDescription) -> NotificationReport:
@@ -160,16 +231,23 @@ def register(app):
         print("\n" + "=" * 60 + "\n[INPUT] Product\n" + "=" * 60)
         print(f"  name: {product.name}\n  domain: {product.domain}\n  one_liner: {product.one_liner}\n")
 
-        # Step 2: Analyse product for ways to include agentic AI
-        opps = _unwrap(await app.call(
-            f"{node}.analyse_agentic_opportunities",
-            product=product.model_dump(),
-        ))
+        # Step 2: Analyse product for ways to include agentic AI (fallback for demo if LLM unavailable)
+        fallback_opps = {
+            "opportunities": [
+                {"id": "o1", "title": "Document gap analysis", "description": "Identify gaps in compliance and ESG docs.", "suggested_agent_type": "file-search"},
+                {"id": "o2", "title": "File search for policy & evidence", "description": "Search across policies and evidence for reporting.", "suggested_agent_type": "file-search"},
+            ],
+            "summary": "Agentic AI fits document search, gap analysis, and compliance evidence retrieval.",
+        }
+        try:
+            opps = _unwrap(await app.call(
+                f"{node}.analyse_agentic_opportunities",
+                product=product.model_dump(),
+            ))
+        except Exception:
+            opps = fallback_opps
         if not opps.get("opportunities"):
-            opps = {
-                "opportunities": [{"id": "o1", "title": "Default", "description": "Agentic AI can support operations.", "suggested_agent_type": "automation"}],
-                "summary": "Agentic AI can support key operations.",
-            }
+            opps = fallback_opps
         opportunities_summary = opps.get("summary", "Agentic AI opportunities identified.")
         print("\n" + "=" * 60 + "\n[STEP 2] Agentic opportunities for your product\n" + "=" * 60)
         print(f"  summary: {opportunities_summary}")
@@ -180,69 +258,69 @@ def register(app):
             print(f"  - {title} ({agent_type}): {desc}...")
         print()
 
-        # Step 3: Search for best/new agents relevant to use case
-        agents_out = _unwrap(await app.call(
-            f"{node}.search_agents_for_product",
-            product=product.model_dump(),
-            opportunities=opps,
-        ))
-        agents_list = agents_out.get("agents") or [
-            {"name": "AgentField", "reason_relevant": "Infrastructure for AI backends", "category": "orchestration"},
-        ]
-        print("\n" + "=" * 60 + "\n[STEP 3] Agents considered for your product\n" + "=" * 60)
-        print(f"  search_context: {agents_out.get('search_context', 'N/A')}")
-        for a in agents_list:
-            print(f"  - {a.get('name')} ({a.get('category')}): {a.get('reason_relevant', '')}")
+        # Step 3: Search simulated agent registry (repository of new agents)
+        registry_agents = registry.search_registry(
+            product_name=product.name,
+            product_domain=product.domain,
+            one_liner=product.one_liner,
+            opportunities=opps.get("opportunities") or [],
+            max_agents=4,
+        )
+        if not registry_agents:
+            registry_agents = registry.load_registry()[:3]
+        print("\n" + "=" * 60 + "\n[STEP 3] Agents from registry (search result)\n" + "=" * 60)
+        print("  source: agent_registry.json (simulated repository)")
+        for a in registry_agents:
+            print(f"  - {a.get('name')} ({a.get('category')}) [{a.get('released')}]: {a.get('description', '')[:60]}...")
         print()
 
-        # Use first opportunity as the use case for mock data and testing
+        # Use first opportunity as the use case for simulation
         first_opp = opps["opportunities"][0]
         use_case_id = first_opp.get("id", "o1")
         use_case_name = first_opp.get("title", first_opp.get("name", "Default"))
 
-        # Step 4: Test each agent with mock data relevant to operations
+        # Step 4: Simulate run for each agent from registry → AI verdict
         agents_tested = []
-        for agent in agents_list:
+        for agent in registry_agents:
             agent_name = agent.get("name", "Unknown")
-            mock_data = _unwrap(await app.call(
-                f"{node}.generate_mock_data",
-                inp={"use_case_id": use_case_id, "use_case_name": use_case_name},
-            ))
-            eval_result_raw = _unwrap(await app.call(
-                f"{node}.evaluate_framework",
-                inp={
-                    "framework_name": agent_name,
-                    "mock_payload": mock_data.get("payload", {}),
-                    "use_case_name": use_case_name,
-                },
-            ))
-            # Normalize to EvalResult-shaped dict so recommend_adoption and AgentTestResult never see envelope
-            eval_result_dict = _ensure_eval_result(eval_result_raw).model_dump()
-            recommendation = _unwrap(await app.call(
-                f"{node}.recommend_adoption",
-                inp={"framework_name": agent_name, "eval_result": eval_result_dict},
-            ))
+            eval_result = registry.simulate_run(agent, use_case_name)
+            eval_result_dict = eval_result.model_dump()
+            try:
+                recommendation = _unwrap(await app.call(
+                    f"{node}.recommend_adoption",
+                    inp={"framework_name": agent_name, "eval_result": eval_result_dict},
+                ))
+            except Exception:
+                recommendation = {
+                    "adopt_worthwhile": eval_result.overall_score >= 0.75,
+                    "reasoning": f"Simulated overall score {eval_result.overall_score}; adopt if score ≥ 0.75.",
+                }
             agents_tested.append({
                 "agent_name": agent_name,
                 "eval_result": eval_result_dict,
                 "adopt_recommended": recommendation.get("adopt_worthwhile", False),
                 "reasoning": recommendation.get("reasoning", ""),
             })
-            # --- PRINT per-agent: mock data, metrics, adopt? ---
+            # --- PRINT per-agent: registry metrics, simulated scores, verdict ---
+            m = agent.get("metrics") or {}
             print("\n" + "-" * 60 + f"\n[STEP 4] Agent: {agent_name}\n" + "-" * 60)
-            print("  mock_data (test payload):", {k: v for k, v in (mock_data.get("payload") or {}).items()})
+            print("  registry metrics:", {k: v for k, v in m.items()})
+            print("  best_for:", agent.get("best_for", []))
             e = eval_result_dict
-            print(f"  metrics: completeness={e.get('score_completeness')}, determinism={e.get('score_determinism')}, fit={e.get('score_fit')}, overall={e.get('overall_score')}; notes={e.get('notes', '')}")
-            print(f"  adopt_recommended: {recommendation.get('adopt_worthwhile')}; reasoning: {recommendation.get('reasoning', '')}")
+            print(f"  simulated scores: completeness={e.get('score_completeness')}, determinism={e.get('score_determinism')}, fit={e.get('score_fit')}, overall={e.get('overall_score')}")
+            print(f"  AI verdict: adopt_recommended={recommendation.get('adopt_worthwhile')}; reasoning: {recommendation.get('reasoning', '')}")
 
         # Step 5: Build notification report (performance insights + why adopt or not)
-        insights_raw = await app.call(
-            f"{node}.build_notification_report",
-            product_name=product.name,
-            opportunities_summary=opportunities_summary,
-            agents_tested=agents_tested,
-        )
-        insights = _unwrap(insights_raw) if isinstance(insights_raw, dict) else {}
+        try:
+            insights_raw = await app.call(
+                f"{node}.build_notification_report",
+                product_name=product.name,
+                opportunities_summary=opportunities_summary,
+                agents_tested=agents_tested,
+            )
+            insights = _unwrap(insights_raw) if isinstance(insights_raw, dict) else {}
+        except Exception:
+            insights = {}
         if not isinstance(insights, dict):
             insights = {}
         overall_insights = insights.get("overall_insights") or "Performance insights across tested agents."
