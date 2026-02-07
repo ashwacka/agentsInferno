@@ -22,6 +22,15 @@ app = Agent(
     ),
 )
 
+# Fix 422 "Missing required field: inp": control plane sends {"input": {...}} but the agent
+# validates the raw body and expects parameter names (e.g. "inp") at top level. Unwrap "input".
+import agentfield.agent as _agent_module
+_orig_validate = _agent_module.Agent._validate_handler_input
+def _patched_validate(self, data, input_types):
+    data = data.get("input", data) if isinstance(data, dict) else data
+    return _orig_validate(self, data, input_types)
+_agent_module.Agent._validate_handler_input = _patched_validate
+
 register_skills(app)
 register_reasoners(app)
 

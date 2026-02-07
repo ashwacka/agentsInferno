@@ -156,6 +156,10 @@ def register(app):
             product = ProductDescription(**product)
         node = "eval-agent"
 
+        # --- INPUT ---
+        print("\n" + "=" * 60 + "\n[INPUT] Product\n" + "=" * 60)
+        print(f"  name: {product.name}\n  domain: {product.domain}\n  one_liner: {product.one_liner}\n")
+
         # Step 2: Analyse product for ways to include agentic AI
         opps = _unwrap(await app.call(
             f"{node}.analyse_agentic_opportunities",
@@ -167,6 +171,14 @@ def register(app):
                 "summary": "Agentic AI can support key operations.",
             }
         opportunities_summary = opps.get("summary", "Agentic AI opportunities identified.")
+        print("\n" + "=" * 60 + "\n[STEP 2] Agentic opportunities for your product\n" + "=" * 60)
+        print(f"  summary: {opportunities_summary}")
+        for o in opps.get("opportunities") or []:
+            title = o.get("title") or o.get("name", "")
+            desc = (o.get("description") or "")[:80]
+            agent_type = o.get("suggested_agent_type", "")
+            print(f"  - {title} ({agent_type}): {desc}...")
+        print()
 
         # Step 3: Search for best/new agents relevant to use case
         agents_out = _unwrap(await app.call(
@@ -177,6 +189,11 @@ def register(app):
         agents_list = agents_out.get("agents") or [
             {"name": "AgentField", "reason_relevant": "Infrastructure for AI backends", "category": "orchestration"},
         ]
+        print("\n" + "=" * 60 + "\n[STEP 3] Agents considered for your product\n" + "=" * 60)
+        print(f"  search_context: {agents_out.get('search_context', 'N/A')}")
+        for a in agents_list:
+            print(f"  - {a.get('name')} ({a.get('category')}): {a.get('reason_relevant', '')}")
+        print()
 
         # Use first opportunity as the use case for mock data and testing
         first_opp = opps["opportunities"][0]
@@ -189,21 +206,21 @@ def register(app):
             agent_name = agent.get("name", "Unknown")
             mock_data = _unwrap(await app.call(
                 f"{node}.generate_mock_data",
-                use_case_id=use_case_id,
-                use_case_name=use_case_name,
+                inp={"use_case_id": use_case_id, "use_case_name": use_case_name},
             ))
             eval_result_raw = _unwrap(await app.call(
                 f"{node}.evaluate_framework",
-                framework_name=agent_name,
-                mock_payload=mock_data.get("payload", {}),
-                use_case_name=use_case_name,
+                inp={
+                    "framework_name": agent_name,
+                    "mock_payload": mock_data.get("payload", {}),
+                    "use_case_name": use_case_name,
+                },
             ))
             # Normalize to EvalResult-shaped dict so recommend_adoption and AgentTestResult never see envelope
             eval_result_dict = _ensure_eval_result(eval_result_raw).model_dump()
             recommendation = _unwrap(await app.call(
                 f"{node}.recommend_adoption",
-                framework_name=agent_name,
-                eval_result=eval_result_dict,
+                inp={"framework_name": agent_name, "eval_result": eval_result_dict},
             ))
             agents_tested.append({
                 "agent_name": agent_name,
@@ -211,6 +228,12 @@ def register(app):
                 "adopt_recommended": recommendation.get("adopt_worthwhile", False),
                 "reasoning": recommendation.get("reasoning", ""),
             })
+            # --- PRINT per-agent: mock data, metrics, adopt? ---
+            print("\n" + "-" * 60 + f"\n[STEP 4] Agent: {agent_name}\n" + "-" * 60)
+            print("  mock_data (test payload):", {k: v for k, v in (mock_data.get("payload") or {}).items()})
+            e = eval_result_dict
+            print(f"  metrics: completeness={e.get('score_completeness')}, determinism={e.get('score_determinism')}, fit={e.get('score_fit')}, overall={e.get('overall_score')}; notes={e.get('notes', '')}")
+            print(f"  adopt_recommended: {recommendation.get('adopt_worthwhile')}; reasoning: {recommendation.get('reasoning', '')}")
 
         # Step 5: Build notification report (performance insights + why adopt or not)
         insights_raw = await app.call(
@@ -224,6 +247,9 @@ def register(app):
             insights = {}
         overall_insights = insights.get("overall_insights") or "Performance insights across tested agents."
         notification_message = insights.get("notification_message") or f"Report for {product.name}: see agents_tested and overall_insights."
+        print("\n" + "=" * 60 + "\n[STEP 5] Notification report\n" + "=" * 60)
+        print(f"  overall_insights: {overall_insights}")
+        print(f"  notification_message: {notification_message}\n" + "=" * 60 + "\n")
 
         # Ensure each agent's eval_result is EvalResult-shaped (already normalized above; _safe_agent_result as fallback)
         def _safe_agent_result(a: dict) -> dict:

@@ -29,3 +29,14 @@ curl -X POST http://localhost:8080/api/v1/execute/eval-agent.evaluate_pipeline \
 **Result:** A `NotificationReport`: `product_name`, `opportunities_summary`, `agents_tested` (per-agent eval + adopt/reasoning), `overall_insights`, `notification_message`.
 
 **Other endpoints:** `analyse_agentic_opportunities`, `search_agents_for_product`, `build_notification_report`, `derive_use_cases`, `generate_mock_data`, `evaluate_framework`, `recommend_adoption` — same base URL and `{"input": {...}}` body.
+
+## API key (one for all LLM steps)
+
+You do **not** need a separate API key per LLM or per step. A single **`OPENAI_API_KEY`** in `agentsInferno/.env` is used for every reasoner (analyse opportunities, search agents, recommend adoption, build notification). All of them use the same model (`openai/gpt-4o` by default). Set it once:
+
+```bash
+# In agentsInferno/.env
+OPENAI_API_KEY=sk-your-openai-key
+```
+
+Without it, LLM steps fail with `AuthenticationError` and the pipeline falls back to default/empty text and zeros for metrics.
