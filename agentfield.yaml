@@ -1,0 +1,3 @@
+# AgentField agent config (optional; main.py sets node_id and server explicitly)
+name: eval-agent
+version: "1.0.0"
